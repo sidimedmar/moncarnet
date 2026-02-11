@@ -1,0 +1,171 @@
+import React from 'react';
+import { Phone, MessageCircle, Calendar, Trash2, CheckCircle, Wallet2, ChevronRight, Check } from 'lucide-react';
+import { Debt } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
+
+interface DebtCardProps {
+  debt: Debt;
+  onPartialPay: (id: number) => void;
+  onFullPay: (id: number) => void;
+  onDelete: (id: number) => void;
+  onViewDetails: (id: number) => void;
+  // Props pour la sélection multiple
+  isSelectionMode: boolean;
+  isSelected: boolean;
+  onToggleSelect: (id: number) => void;
+}
+
+const DebtCard: React.FC<DebtCardProps> = ({ debt, onPartialPay, onFullPay, onDelete, onViewDetails, isSelectionMode, isSelected, onToggleSelect }) => {
+  const { t, dir } = useLanguage();
+
+  const calculerJours = (dateDette: string) => {
+    const diff = new Date().getTime() - new Date(dateDette).getTime();
+    return Math.floor(diff / (1000 * 60 * 60 * 24));
+  };
+
+  const jours = calculerJours(debt.date);
+
+  const getUrgencyStyles = (jours: number) => {
+    if (jours > 30) return {
+      badge: 'bg-red-100 text-red-700 border-red-200',
+      border: 'border-s-red-500', 
+      text: t.status.critical
+    };
+    if (jours > 15) return {
+      badge: 'bg-orange-100 text-orange-700 border-orange-200',
+      border: 'border-s-orange-500', 
+      text: t.status.medium
+    };
+    return {
+      badge: 'bg-green-100 text-green-700 border-green-200',
+      border: 'border-s-green-500', 
+      text: t.status.recent
+    };
+  };
+
+  const style = getUrgencyStyles(jours);
+
+  const handleWhatsApp = (e: React.MouseEvent, type: 'soft' | 'firm') => {
+    e.stopPropagation();
+    let message = '';
+    if (type === 'soft') {
+      message = t.whatsapp.soft
+        .replace('{name}', debt.nom)
+        .replace('{amount}', debt.montant.toString());
+    } else {
+      message = t.whatsapp.firm
+        .replace('{name}', debt.nom)
+        .replace('{amount}', debt.montant.toString())
+        .replace('{days}', jours.toString());
+    }
+    const url = `https://wa.me/${debt.tel}?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
+  };
+
+  const handleCardClick = () => {
+    if (isSelectionMode) {
+      onToggleSelect(debt.id);
+    } else {
+      onViewDetails(debt.id);
+    }
+  };
+
+  if (debt.isPaid) {
+     return null;
+  }
+
+  return (
+    <div 
+      onClick={handleCardClick}
+      className={`relative bg-white rounded-xl shadow-sm border border-slate-100 border-s-4 ${style.border} overflow-hidden transition-all duration-200 cursor-pointer group ${isSelectionMode ? (isSelected ? 'shadow-lg ring-2 ring-primary-500' : 'hover:bg-slate-50') : 'hover:shadow-md active:scale-[0.99]'}`}
+    >
+      {/* Overlay de sélection */}
+      {isSelectionMode && (
+        <div className={`absolute top-3 ${dir === 'rtl' ? 'left-3' : 'right-3'} z-10`}>
+          <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-all ${isSelected ? 'bg-primary-600 border-primary-600' : 'bg-white/50 backdrop-blur-sm border-slate-300'}`}>
+            {isSelected && <Check size={16} className="text-white" />}
+          </div>
+        </div>
+      )}
+
+      <div className={`p-4 sm:p-5 transition-opacity ${isSelectionMode && !isSelected ? 'opacity-70' : 'opacity-100'}`}>
+        <div className="flex justify-between items-start mb-4">
+          <div className="min-w-0 flex-1 pe-4"> 
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <h3 className="font-bold text-lg text-slate-800 truncate max-w-full group-hover:text-primary-600 transition-colors">{debt.nom}</h3>
+              <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border shrink-0 ${style.badge}`}>
+                {style.text}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center text-slate-500 text-xs sm:text-sm gap-x-3 gap-y-1">
+                <div className="flex items-center gap-1">
+                    <Calendar size={14} />
+                    <span>{new Date(debt.date).toLocaleDateString('fr-FR')}</span>
+                </div>
+                <span className="hidden sm:inline text-slate-300">•</span>
+                <span className={`${jours > 0 ? "text-slate-500" : "text-slate-400"}`}>
+                    {jours > 0 ? `${t.daysLate} ${jours} ${t.days}` : t.today}
+                </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="text-end shrink-0">
+              <p className="text-lg sm:text-xl font-black text-slate-800 tracking-tight">{debt.montant.toLocaleString()}</p>
+              <p className="text-[10px] sm:text-xs text-slate-400 font-medium">{t.currency}</p>
+            </div>
+            {!isSelectionMode && <ChevronRight size={20} className={`text-slate-300 ${dir === 'rtl' ? 'rotate-180' : ''}`} />}
+          </div>
+        </div>
+
+        {/* Cacher les actions en mode sélection */}
+        {!isSelectionMode && (
+          <>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <button 
+                onClick={(e) => handleWhatsApp(e, 'soft')}
+                className="flex items-center justify-center gap-2 py-3 sm:py-2.5 px-2 sm:px-4 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs sm:text-sm font-semibold transition-colors border border-emerald-100 active:scale-95 transform duration-100"
+              >
+                <MessageCircle size={16} className="shrink-0" />
+                <span className="truncate">{t.softReminder}</span>
+              </button>
+              <button 
+                onClick={(e) => handleWhatsApp(e, 'firm')}
+                className="flex items-center justify-center gap-2 py-3 sm:py-2.5 px-2 sm:px-4 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-lg text-xs sm:text-sm font-semibold transition-colors border border-rose-100 active:scale-95 transform duration-100"
+              >
+                <span className="flex items-center justify-center w-4 h-4 bg-rose-200 rounded-full text-[10px] shrink-0">!</span>
+                <span className="truncate">{t.firmReminder}</span>
+              </button>
+            </div>
+            <div className="flex items-center justify-between pt-4 border-t border-slate-50 gap-2">
+                <button 
+                    onClick={(e) => { e.stopPropagation(); onDelete(debt.id); }}
+                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors active:bg-red-100 shrink-0"
+                    title={t.delete}
+                >
+                    <Trash2 size={18} />
+                </button>
+                <div className="flex gap-2 flex-1 justify-end overflow-hidden">
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); onPartialPay(debt.id); }}
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 py-2 bg-primary-100 text-primary-700 rounded-lg text-sm font-bold hover:bg-primary-200 transition-colors shadow-sm active:scale-95 transform duration-100 border border-primary-200 truncate"
+                    >
+                        <Wallet2 size={16} className="shrink-0" />
+                        <span className="truncate">{t.payPartially}</span>
+                    </button>
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); onFullPay(debt.id); }}
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 py-2 bg-slate-900 text-white rounded-lg text-sm font-bold hover:bg-slate-800 transition-colors shadow-sm active:bg-slate-700 active:scale-95 transform duration-100 truncate"
+                    >
+                        <CheckCircle size={16} className="shrink-0" />
+                        <span className="truncate">{t.markPaid}</span>
+                    </button>
+                </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default DebtCard;
