@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Calendar, Share2, TrendingDown, TrendingUp, Check } from 'lucide-react';
+import { X, Calendar, Share2, TrendingDown, TrendingUp, Check, FileDown } from 'lucide-react';
 import { Debt } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -16,7 +16,6 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({ isOpen, onClose, de
   if (!isOpen || !debt) return null;
 
   const handleShare = () => {
-    // Génération d'un texte formaté "Reçu"
     const lines = [
       `*🧾 REÇU DE SITUATION - ${t.appTitle}*`,
       `-------------------`,
@@ -37,18 +36,34 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({ isOpen, onClose, de
 
     const text = lines.join('\n');
     
-    // Essayer de copier ou partager
     if (navigator.share) {
-      navigator.share({
-        title: `Reçu ${debt.nom}`,
-        text: text
-      }).catch(console.error);
+      navigator.share({ title: `Reçu ${debt.nom}`, text: text }).catch(console.error);
     } else {
       navigator.clipboard.writeText(text).then(() => {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       });
     }
+  };
+  
+  const handleExportTransactions = () => {
+    if (!debt) return;
+
+    const headers = ["ID", "Type", "Montant", "Date"];
+    const rows = debt.transactions.map(tr => 
+        [tr.id, tr.type, tr.amount, new Date(tr.date).toISOString().split('T')[0]].join(',')
+    );
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows].join('\n');
+    const link = document.createElement("a");
+    const today = new Date().toISOString().split('T')[0];
+    const filename = `transactions_${debt.nom.replace(/\s+/g, '_')}_${today}.csv`;
+    
+    link.setAttribute("href", encodeURI(csvContent));
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -60,7 +75,6 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({ isOpen, onClose, de
       
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm relative z-10 overflow-hidden flex flex-col max-h-[85vh] animate-[scale-in_0.2s_ease-out]">
         
-        {/* Header */}
         <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center shrink-0">
           <h2 className="text-lg font-bold text-slate-800">{t.details}</h2>
           <button onClick={onClose} className="p-2 -me-2 text-slate-400 hover:text-slate-600">
@@ -68,7 +82,6 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({ isOpen, onClose, de
           </button>
         </div>
 
-        {/* Content */}
         <div className="p-6 overflow-y-auto">
           
           <div className="text-center mb-6">
@@ -85,7 +98,6 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({ isOpen, onClose, de
           </div>
 
           <div className="space-y-3 relative">
-             {/* Ligne verticale de timeline */}
              <div className="absolute start-4 top-2 bottom-2 w-0.5 bg-slate-100"></div>
 
             {[...debt.transactions].reverse().map((tr) => (
@@ -114,8 +126,14 @@ const DebtDetailsModal: React.FC<DebtDetailsModalProps> = ({ isOpen, onClose, de
           </div>
         </div>
 
-        {/* Footer Actions */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50 shrink-0">
+        <div className="p-4 border-t border-slate-100 bg-slate-50 shrink-0 grid grid-cols-2 gap-3">
+          <button 
+            onClick={handleExportTransactions}
+            className="w-full py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
+          >
+            <FileDown size={20} />
+            {t.exportTransactions}
+          </button>
           <button 
             onClick={handleShare}
             className={`w-full py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${

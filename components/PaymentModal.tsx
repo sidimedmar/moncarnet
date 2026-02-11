@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, DollarSign, Calculator, ArrowRight } from 'lucide-react';
+import { X, DollarSign, ArrowRight } from 'lucide-react';
 import { Debt } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -17,7 +17,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, debt, onCo
   // Reset amount when modal opens
   useEffect(() => {
     if (isOpen && debt) {
-      setAmount(debt.montant.toString());
+      setAmount(''); // Start with an empty field
     }
   }, [isOpen, debt]);
 
@@ -59,7 +59,16 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, debt, onCo
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">{t.payment.amountRecieved}</label>
+              <div className="flex justify-between items-center mb-2">
+                <label className="block text-sm font-medium text-slate-700">{t.payment.amountRecieved}</label>
+                <button
+                  type="button"
+                  onClick={() => setAmount(debt.montant.toString())}
+                  className="text-xs font-bold text-primary-600 bg-primary-100 px-2 py-1 rounded-md hover:bg-primary-200 transition-colors"
+                >
+                  {t.payment.payFull}
+                </button>
+              </div>
               <div className="relative">
                 <div className="absolute inset-y-0 start-0 ps-3 flex items-center pointer-events-none">
                   <DollarSign size={20} className="text-slate-400" />
@@ -72,24 +81,25 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, debt, onCo
                   autoFocus
                   className="block w-full ps-10 pe-3 py-3 text-lg font-bold border-2 border-slate-200 rounded-xl focus:ring-4 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all"
                   value={amount}
+                  placeholder="0"
                   onChange={e => setAmount(e.target.value)}
                 />
               </div>
-              {/* Affichage du montant reçu sous l'input */}
-              {amount && (
-                <div className="mt-2 text-center animate-pulse">
-                  <p className="text-sm text-emerald-600 font-medium bg-emerald-50 inline-block px-3 py-1 rounded-full border border-emerald-100">
-                    {t.payment.amountRecieved}: <span className="font-bold">{Number(amount).toLocaleString()} {t.currency}</span>
-                  </p>
-                </div>
-              )}
             </div>
 
-            <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
-              <span className="text-sm text-slate-500 font-medium">{t.payment.newBalance}</span>
-              <span className={`text-lg font-bold ${remaining === 0 ? 'text-green-600' : 'text-slate-800'}`}>
-                {remaining === 0 ? t.payment.fullyPaid : `${remaining.toLocaleString()} ${t.currency}`}
-              </span>
+            <div className="space-y-2 p-3 bg-slate-50 rounded-lg border border-slate-100">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-500 font-medium">{t.payment.amountPaid}</span>
+                <span className="font-bold text-slate-800">
+                  {payAmount.toLocaleString()} {t.currency}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-500 font-medium">{t.payment.newBalance}</span>
+                <span className={`text-lg font-bold ${remaining === 0 && payAmount > 0 ? 'text-green-600' : 'text-slate-800'}`}>
+                  {remaining === 0 && payAmount > 0 ? t.payment.fullyPaid : `${remaining.toLocaleString()} ${t.currency}`}
+                </span>
+              </div>
             </div>
           </div>
 

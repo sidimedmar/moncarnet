@@ -8,7 +8,8 @@ import PaymentModal from './components/PaymentModal';
 import ConfirmModal from './components/ConfirmModal';
 import AboutModal from './components/AboutModal';
 import DebtDetailsModal from './components/DebtDetailsModal';
-import OrderCta from './components/OrderCta'; // Importer le nouveau composant
+import OrderCta from './components/OrderCta';
+import ReminderConfirmModal from './components/ReminderConfirmModal';
 import { Debt, SortOption } from './types';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 
@@ -43,7 +44,8 @@ const AppContent: React.FC = () => {
   const [deleteModalDebtId, setDeleteModalDebtId] = useState<number | null>(null);
   const [detailsModalDebtId, setDetailsModalDebtId] = useState<number | null>(null);
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
-  
+  const [reminderModalData, setReminderModalData] = useState<{ debt: Debt; type: 'soft' | 'firm' } | null>(null);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('date-asc');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
@@ -76,14 +78,6 @@ const AppContent: React.FC = () => {
     setPaymentModalDebtId(null);
   };
 
-  const handleFullPayment = (id: number) => {
-    setDebts(prev => prev.map(d => {
-      if (d.id !== id) return d;
-      const newTransaction = { id: Date.now(), type: 'PAYMENT' as const, amount: d.montant, date: new Date().toISOString() };
-      return { ...d, montant: 0, isPaid: true, transactions: [...d.transactions, newTransaction] };
-    }));
-  };
-
   const initiateDelete = (id: number) => setDeleteModalDebtId(id);
   const confirmDelete = () => {
     if (deleteModalDebtId !== null) {
@@ -95,20 +89,38 @@ const AppContent: React.FC = () => {
   const filteredDebts = useMemo(() => {
     return debts
       .filter(d => !d.isPaid)
-      .filter(d => d.nom.toLowerCase().includes(searchTerm.toLowerCase()) || d.tel.includes(searchTerm))
+      .filter(d => {
+          const search = searchTerm.toLowerCase();
+          return d.nom.toLowerCase().includes(search) || 
+                 d.tel.includes(search) ||
+                 d.date.includes(search);
+      })
       .filter(d => {
         if (!dateRange.start || !dateRange.end) return true;
         const debtDate = new Date(d.date).getTime();
         const startDate = new Date(dateRange.start).getTime();
-        // Add 1 day to end date to include the whole day
         const endDate = new Date(dateRange.end).getTime() + (24 * 60 * 60 * 1000 - 1);
         return debtDate >= startDate && debtDate <= endDate;
       })
       .sort((a, b) => {
-        if (sortBy === 'amount-desc') return b.montant - a.montant;
-        if (sortBy === 'amount-asc') return a.montant - b.montant;
-        if (sortBy === 'date-asc') return new Date(a.date).getTime() - new Date(b.date).getTime();
-        return new Date(b.date).getTime() - new Date(a.date).getTime();
+        switch (sortBy) {
+          case 'amount-desc': return b.montant - a.montant;
+          case 'amount-asc': return a.montant - b.montant;
+          case 'date-desc': return new Date(b.date).getTime() - new Date(a.date).getTime();
+          case 'date-credit-asc': {
+            const dateA = a.transactions.find(tx => tx.type === 'CREDIT')?.date || a.date;
+            const dateB = b.transactions.find(tx => tx.type === 'CREDIT')?.date || b.date;
+            return new Date(dateA).getTime() - new Date(dateB).getTime();
+          }
+          case 'date-credit-desc': {
+            const dateA = a.transactions.find(tx => tx.type === 'CREDIT')?.date || a.date;
+            const dateB = b.transactions.find(tx => tx.type === 'CREDIT')?.date || b.date;
+            return new Date(dateB).getTime() - new Date(dateA).getTime();
+          }
+          case 'date-asc':
+          default:
+            return new Date(a.date).getTime() - new Date(b.date).getTime();
+        }
       });
   }, [debts, searchTerm, sortBy, dateRange]);
 
@@ -140,6 +152,30 @@ const AppContent: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  const handleInitiateReminder = (debtId: number, type: 'soft' | 'firm') => {
+    const debt = debts.find(d => d.id === debtId);
+    if (debt) {
+      setReminderModalData({ debt, type });
+    }
+  };
+  
+  const getReminderMessage = (debt: Debt, type: 'soft' | 'firm') => {
+    const jours = Math.floor((new Date().getTime() - new Date(debt.date).getTime()) / (1000 * 60 * 60 * 24));
+    let messageTemplate = type === 'soft' ? t.whatsapp.soft : t.whatsapp.firm;
+    return messageTemplate
+      .replace('{name}', debt.nom)
+      .replace('{amount}', debt.montant.toString())
+      .replace('{days}', jours.toString());
+  };
+
+  const handleSendReminder = () => {
+    if (!reminderModalData) return;
+    const { debt, type } = reminderModalData;
+    const message = getReminderMessage(debt, type);
+    const url = `https://wa.me/${debt.tel}?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
+  };
+
   const totalAmount = debts.filter(d => !d.isPaid).reduce((acc, d) => acc + d.montant, 0);
   const totalCount = debts.filter(d => !d.isPaid).length;
 
@@ -161,7 +197,11 @@ const AppContent: React.FC = () => {
             <div className="relative">
                <div className="absolute start-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"><Filter size={16} /></div>
                <select className="w-full sm:w-auto appearance-none bg-white border border-slate-200 rounded-xl ps-10 pe-8 py-3 focus:ring-2 focus:ring-primary-500 outline-none shadow-sm text-base font-medium text-slate-700 cursor-pointer hover:border-slate-300" value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)}>
-                  <option value="date-asc">{t.sort.recentDelay}</option><option value="date-desc">{t.sort.oldest}</option><option value="amount-desc">{t.sort.amountDesc}</option><option value="amount-asc">{t.sort.amountAsc}</option>
+                  <option value="date-asc">{t.sort.recentDelay}</option>
+                  <option value="date-desc">{t.sort.oldest}</option>
+                  <option value="amount-desc">{t.sort.amountDesc}</option>
+                  <option value="amount-asc">{t.sort.amountAsc}</option>
+                  <option value="date-credit-asc">{t.sort.oldestCredit}</option>
                </select>
             </div>
           </div>
@@ -178,7 +218,7 @@ const AppContent: React.FC = () => {
 
         <div className="space-y-4">
           {filteredDebts.length > 0 ? (
-            filteredDebts.map(debt => <DebtCard key={debt.id} debt={debt} onPartialPay={initiateDelete} onFullPay={handleFullPayment} onDelete={initiateDelete} onViewDetails={setDetailsModalDebtId} isSelectionMode={isSelectionMode} isSelected={selectedDebtIds.has(debt.id)} onToggleSelect={handleToggleSelectDebt} />)
+            filteredDebts.map(debt => <DebtCard key={debt.id} debt={debt} onPay={(id) => setPaymentModalDebtId(id)} onDelete={initiateDelete} onViewDetails={setDetailsModalDebtId} onRemind={handleInitiateReminder} isSelectionMode={isSelectionMode} isSelected={selectedDebtIds.has(debt.id)} onToggleSelect={handleToggleSelectDebt} />)
           ) : (
             <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200">
               <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"><Search className="text-slate-300" size={32} /></div>
@@ -187,7 +227,6 @@ const AppContent: React.FC = () => {
           )}
         </div>
         
-        {/* Formulaire de commande */}
         <OrderCta />
 
       </main>
@@ -208,6 +247,12 @@ const AppContent: React.FC = () => {
       <ConfirmModal isOpen={deleteModalDebtId !== null} onClose={() => setDeleteModalDebtId(null)} onConfirm={confirmDelete} />
       <AboutModal isOpen={isAboutModalOpen} onClose={() => setIsAboutModalOpen(false)} />
       <DebtDetailsModal isOpen={detailsModalDebtId !== null} onClose={() => setDetailsModalDebtId(null)} debt={selectedDebtForDetails} />
+      <ReminderConfirmModal 
+        isOpen={reminderModalData !== null}
+        onClose={() => setReminderModalData(null)}
+        onConfirm={handleSendReminder}
+        message={reminderModalData ? getReminderMessage(reminderModalData.debt, reminderModalData.type) : ''}
+      />
       
       <ConfirmModal 
         isOpen={isBulkDeleteModalOpen}

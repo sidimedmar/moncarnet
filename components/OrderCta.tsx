@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -9,12 +9,22 @@ const OrderCta: React.FC = () => {
     shopName: '',
     whatsappNumber: ''
   });
+  
+  const [devWhatsapp, setDevWhatsapp] = useState("40000000"); // Default without country code
 
-  // ========================================================================
-  // 👇 NUMÉRO À CONTACTER POUR RECEVOIR LES COMMANDES 👇
-  // ========================================================================
-  const DEV_WHATSAPP_FOR_ORDERS = "22240000000"; // REMPLACEZ par votre numéro
-  // ========================================================================
+  useEffect(() => {
+    const savedConfig = localStorage.getItem('dev_contact_config');
+    if (savedConfig) {
+      try {
+        const config = JSON.parse(savedConfig);
+        if (config.whatsapp) {
+          setDevWhatsapp(config.whatsapp);
+        }
+      } catch (e) {
+        console.error("Failed to parse contact config for CTA", e);
+      }
+    }
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -29,7 +39,8 @@ const OrderCta: React.FC = () => {
       .replace('{shopName}', formData.shopName)
       .replace('{whatsappNumber}', formData.whatsappNumber);
     
-    const whatsappUrl = `https://wa.me/${DEV_WHATSAPP_FOR_ORDERS}?text=${encodeURIComponent(message)}`;
+    // Add country code prefix consistently
+    const whatsappUrl = `https://wa.me/222${devWhatsapp}?text=${encodeURIComponent(message)}`;
     
     window.open(whatsappUrl, '_blank');
   };
