@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Plus, Search, Filter, Calendar, FileDown, Trash2, X, CheckSquare } from 'lucide-react';
+import { Plus, Search, Filter, Calendar, FileDown, Trash2, X, CheckSquare, Bell } from 'lucide-react';
 import Header from './components/Header';
 import SummaryCard from './components/SummaryCard';
 import DebtCard from './components/DebtCard';
@@ -20,13 +20,13 @@ const daysAgo = (days: number) => {
 };
 
 const INITIAL_DATA: Debt[] = [
-  { id: 1, nom: "Ahmed Ould Sidi", montant: 5500, date: daysAgo(45), tel: "22244444444", isPaid: false, transactions: [{ id: 101, type: 'CREDIT', amount: 6000, date: daysAgo(45) }, { id: 102, type: 'PAYMENT', amount: 500, date: daysAgo(10) }] },
-  { id: 2, nom: "Mariem Mint Ahmed", montant: 1200, date: daysAgo(12), tel: "22233333333", isPaid: false, transactions: [{ id: 201, type: 'CREDIT', amount: 1200, date: daysAgo(12) }] },
-  { id: 3, nom: "Oumar Diop", montant: 8000, date: daysAgo(25), tel: "22222222222", isPaid: false, transactions: [{ id: 301, type: 'CREDIT', amount: 8000, date: daysAgo(25) }] },
+  { id: 1, nom: "Ahmed Ould Sidi", montant: 5500, date: daysAgo(45), tel: "22244444444", status: 'ACTIVE', isPaid: false, transactions: [{ id: 101, type: 'CREDIT', amount: 6000, date: daysAgo(45), description: "Riz 50kg, Sucre 10kg" }, { id: 102, type: 'PAYMENT', amount: 500, date: daysAgo(10) }] },
+  { id: 2, nom: "Mariem Mint Ahmed", montant: 1200, date: daysAgo(12), tel: "22233333333", status: 'ACTIVE', isPaid: false, transactions: [{ id: 201, type: 'CREDIT', amount: 1200, date: daysAgo(12), description: "Voile" }] },
+  { id: 3, nom: "Oumar Diop", montant: 8000, date: daysAgo(25), tel: "22222222222", status: 'ACTIVE', isPaid: false, transactions: [{ id: 301, type: 'CREDIT', amount: 8000, date: daysAgo(25), description: "Ciment" }] },
 ];
 
 const AppContent: React.FC = () => {
-  const { t, dir } = useLanguage();
+  const { t, dir, formatMoney } = useLanguage();
   
   const [debts, setDebts] = useState<Debt[]>(() => {
     if (typeof window !== 'undefined') {
@@ -45,10 +45,13 @@ const AppContent: React.FC = () => {
   const [detailsModalDebtId, setDetailsModalDebtId] = useState<number | null>(null);
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
   const [reminderModalData, setReminderModalData] = useState<{ debt: Debt; type: 'soft' | 'firm' } | null>(null);
+  
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('date-asc');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'CONTENTIOUS' | 'PAID'>('ALL');
 
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedDebtIds, setSelectedDebtIds] = useState<Set<number>>(new Set());
@@ -56,26 +59,65 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('debts_v2', JSON.stringify(debts));
   }, [debts]);
+  
+  // Toast Timer
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => setToastMessage(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
 
-  const addDebt = (newDebt: Omit<Debt, 'id' | 'isPaid' | 'transactions'>) => {
+  const showToast = (msg: string) => setToastMessage(msg);
+
+  const addDebt = (newDebt: Omit<Debt, 'id' | 'isPaid' | 'transactions' | 'status'> & { description: string }) => {
     const debt: Debt = {
       ...newDebt,
       id: Date.now(),
+      status: 'ACTIVE',
       isPaid: false,
-      transactions: [{ id: Date.now(), type: 'CREDIT', amount: newDebt.montant, date: newDebt.date }]
+      transactions: [{ 
+        id: Date.now(), 
+        type: 'CREDIT', 
+        amount: newDebt.montant, 
+        date: newDebt.date,
+        description: newDebt.description 
+      }]
     };
     setDebts(prev => [debt, ...prev]);
+    showToast("Nouveau crédit ajouté !");
   };
 
-  const handlePayment = (amountPaid: number) => {
+  const handlePayment = (amountPaid: number, description?: string) => {
     if (paymentModalDebtId === null) return;
     setDebts(prev => prev.map(d => {
       if (d.id !== paymentModalDebtId) return d;
       const newAmount = d.montant - amountPaid;
-      const newTransaction = { id: Date.now(), type: 'PAYMENT' as const, amount: amountPaid, date: new Date().toISOString() };
-      return { ...d, montant: Math.max(0, newAmount), isPaid: newAmount <= 0, transactions: [...d.transactions, newTransaction] };
+      const newTransaction = { 
+        id: Date.now(), 
+        type: 'PAYMENT' as const, 
+        amount: amountPaid, 
+        date: new Date().toISOString(),
+        description: description 
+      };
+      return { 
+          ...d, 
+          montant: Math.max(0, newAmount), 
+          isPaid: newAmount <= 0, 
+          status: newAmount <= 0 ? 'PAID' : d.status,
+          transactions: [...d.transactions, newTransaction] 
+      };
     }));
     setPaymentModalDebtId(null);
+    showToast(`Paiement de ${formatMoney(amountPaid)} enregistré !`);
+  };
+  
+  const toggleContentious = (id: number) => {
+      setDebts(prev => prev.map(d => {
+          if (d.id !== id) return d;
+          const newStatus = d.status === 'CONTENTIOUS' ? 'ACTIVE' : 'CONTENTIOUS';
+          return { ...d, status: newStatus };
+      }));
   };
 
   const initiateDelete = (id: number) => setDeleteModalDebtId(id);
@@ -83,17 +125,24 @@ const AppContent: React.FC = () => {
     if (deleteModalDebtId !== null) {
       setDebts(prev => prev.filter(d => d.id !== deleteModalDebtId));
       setDeleteModalDebtId(null);
+      showToast("Dette supprimée.");
     }
   };
   
   const filteredDebts = useMemo(() => {
     return debts
-      .filter(d => !d.isPaid)
+      .filter(d => {
+          if (statusFilter === 'ALL') return !d.isPaid && d.status !== 'PAID'; // Show active & contentious
+          if (statusFilter === 'PAID') return d.isPaid || d.status === 'PAID';
+          return d.status === statusFilter;
+      })
       .filter(d => {
           const search = searchTerm.toLowerCase();
+          const inTransactions = d.transactions.some(t => t.description?.toLowerCase().includes(search));
           return d.nom.toLowerCase().includes(search) || 
                  d.tel.includes(search) ||
-                 d.date.includes(search);
+                 d.date.includes(search) ||
+                 inTransactions;
       })
       .filter(d => {
         if (!dateRange.start || !dateRange.end) return true;
@@ -122,7 +171,7 @@ const AppContent: React.FC = () => {
             return new Date(a.date).getTime() - new Date(b.date).getTime();
         }
       });
-  }, [debts, searchTerm, sortBy, dateRange]);
+  }, [debts, searchTerm, sortBy, dateRange, statusFilter]);
 
   const handleToggleSelectDebt = (id: number) => {
     setSelectedDebtIds(prev => {
@@ -138,6 +187,7 @@ const AppContent: React.FC = () => {
     setIsSelectionMode(false);
     setSelectedDebtIds(new Set());
     setIsBulkDeleteModalOpen(false);
+    showToast("Sélection supprimée.");
   };
   
   const handleExportCSV = () => {
@@ -176,8 +226,24 @@ const AppContent: React.FC = () => {
     window.open(url, '_blank');
   };
 
-  const totalAmount = debts.filter(d => !d.isPaid).reduce((acc, d) => acc + d.montant, 0);
-  const totalCount = debts.filter(d => !d.isPaid).length;
+  const totalAmount = debts.filter(d => d.status !== 'PAID').reduce((acc, d) => acc + d.montant, 0);
+  const totalCount = debts.filter(d => d.status !== 'PAID').length;
+
+  // Calcul des statistiques du jour
+  const today = new Date().toISOString().split('T')[0];
+  const stats = useMemo(() => {
+    let collected = 0;
+    let credited = 0;
+    debts.forEach(d => {
+        d.transactions.forEach(t => {
+            if (t.date.startsWith(today)) {
+                if (t.type === 'PAYMENT') collected += t.amount;
+                if (t.type === 'CREDIT') credited += t.amount;
+            }
+        });
+    });
+    return { collected, credited };
+  }, [debts, today]);
 
   const selectedDebtForPayment = debts.find(d => d.id === paymentModalDebtId) || null;
   const selectedDebtForDetails = debts.find(d => d.id === detailsModalDebtId) || null;
@@ -185,8 +251,23 @@ const AppContent: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 font-sans pb-48" dir={dir}>
       <Header onOpenAbout={() => setIsAboutModalOpen(true)} />
+      
+      {toastMessage && (
+          <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50 animate-fade-in-down">
+              <div className="bg-slate-900 text-white px-6 py-3 rounded-full shadow-xl flex items-center gap-3">
+                  <Bell size={18} className="text-amber-400" />
+                  <span className="font-bold text-sm">{toastMessage}</span>
+              </div>
+          </div>
+      )}
+      
       <main className="max-w-3xl mx-auto px-4 pt-6 space-y-6">
-        <SummaryCard totalAmount={totalAmount} totalCount={totalCount} />
+        <SummaryCard 
+            totalAmount={totalAmount} 
+            totalCount={totalCount} 
+            collectedToday={stats.collected}
+            creditedToday={stats.credited}
+        />
 
         <div className="space-y-4 sticky top-20 bg-slate-50/95 backdrop-blur z-10 py-2 -mx-4 px-4 sm:mx-0 sm:px-0">
           <div className="flex flex-col sm:flex-row gap-4">
@@ -205,6 +286,14 @@ const AppContent: React.FC = () => {
                </select>
             </div>
           </div>
+          
+          <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
+              <button onClick={() => setStatusFilter('ALL')} className={`px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap border ${statusFilter === 'ALL' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200'}`}>Tous</button>
+              <button onClick={() => setStatusFilter('ACTIVE')} className={`px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap border ${statusFilter === 'ACTIVE' ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-slate-500 border-slate-200'}`}>En cours</button>
+              <button onClick={() => setStatusFilter('CONTENTIOUS')} className={`px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap border ${statusFilter === 'CONTENTIOUS' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-slate-500 border-slate-200'}`}>Contentieux</button>
+              <button onClick={() => setStatusFilter('PAID')} className={`px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap border ${statusFilter === 'PAID' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-slate-500 border-slate-200'}`}>Payés/Archivés</button>
+          </div>
+
           <div className="flex flex-col sm:flex-row gap-4 items-center">
             <div className="flex-1 w-full sm:w-auto"><label className="text-xs font-bold text-slate-500 ms-1">{t.from}</label><input type="date" className="w-full bg-white border border-slate-200 rounded-xl p-2 focus:ring-2 focus:ring-primary-500 outline-none text-sm" value={dateRange.start} onChange={e => setDateRange({...dateRange, start: e.target.value})} /></div>
             <div className="flex-1 w-full sm:w-auto"><label className="text-xs font-bold text-slate-500 ms-1">{t.to}</label><input type="date" className="w-full bg-white border border-slate-200 rounded-xl p-2 focus:ring-2 focus:ring-primary-500 outline-none text-sm" value={dateRange.end} onChange={e => setDateRange({...dateRange, end: e.target.value})} /></div>
@@ -246,7 +335,7 @@ const AppContent: React.FC = () => {
       <PaymentModal isOpen={paymentModalDebtId !== null} debt={selectedDebtForPayment} onClose={() => setPaymentModalDebtId(null)} onConfirm={handlePayment} />
       <ConfirmModal isOpen={deleteModalDebtId !== null} onClose={() => setDeleteModalDebtId(null)} onConfirm={confirmDelete} />
       <AboutModal isOpen={isAboutModalOpen} onClose={() => setIsAboutModalOpen(false)} />
-      <DebtDetailsModal isOpen={detailsModalDebtId !== null} onClose={() => setDetailsModalDebtId(null)} debt={selectedDebtForDetails} />
+      <DebtDetailsModal isOpen={detailsModalDebtId !== null} onClose={() => setDetailsModalDebtId(null)} debt={selectedDebtForDetails} onToggleContentious={toggleContentious} />
       <ReminderConfirmModal 
         isOpen={reminderModalData !== null}
         onClose={() => setReminderModalData(null)}

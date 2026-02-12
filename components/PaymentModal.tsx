@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, DollarSign, ArrowRight } from 'lucide-react';
+import { X, DollarSign, ArrowRight, FileText, QrCode } from 'lucide-react';
 import { Debt } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -7,17 +7,21 @@ interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   debt: Debt | null;
-  onConfirm: (amount: number) => void;
+  onConfirm: (amount: number, description?: string) => void;
 }
 
 const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, debt, onConfirm }) => {
-  const { t, dir } = useLanguage();
+  const { t, dir, formatMoney } = useLanguage();
   const [amount, setAmount] = useState('');
+  const [note, setNote] = useState('');
+  const [showQR, setShowQR] = useState(false);
 
-  // Reset amount when modal opens
+  // Reset when modal opens
   useEffect(() => {
     if (isOpen && debt) {
-      setAmount(''); // Start with an empty field
+      setAmount(''); 
+      setNote('');
+      setShowQR(false);
     }
   }, [isOpen, debt]);
 
@@ -26,11 +30,15 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, debt, onCo
   const currentDebt = debt.montant;
   const payAmount = Number(amount) || 0;
   const remaining = Math.max(0, currentDebt - payAmount);
+  
+  // URL de l'API QR Code (simple et efficace)
+  const qrData = `TEL:${debt.tel};AMOUNT:${payAmount > 0 ? payAmount : currentDebt}`;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrData)}&color=0f172a`;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (payAmount > 0) {
-      onConfirm(payAmount);
+      onConfirm(payAmount, note);
       onClose();
     }
   };
@@ -53,7 +61,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, debt, onCo
         <form onSubmit={handleSubmit} className="p-6">
           <div className="mb-6 bg-primary-50 p-4 rounded-xl border border-primary-100 text-center">
             <p className="text-sm text-primary-600 mb-1">{t.payment.currentDebt}</p>
-            <p className="text-3xl font-black text-primary-900">{currentDebt.toLocaleString()} <span className="text-lg font-bold">{t.currency}</span></p>
+            <p className="text-3xl font-black text-primary-900">{formatMoney(currentDebt)}</p>
             <p className="text-sm text-primary-700 font-medium mt-1">{debt.nom}</p>
           </div>
 
@@ -81,23 +89,51 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, debt, onCo
                   autoFocus
                   className="block w-full ps-10 pe-3 py-3 text-lg font-bold border-2 border-slate-200 rounded-xl focus:ring-4 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all"
                   value={amount}
-                  placeholder="0"
+                  placeholder="0.00"
                   onChange={e => setAmount(e.target.value)}
                 />
               </div>
             </div>
+            
+            <div>
+               <div className="relative">
+                 <div className="absolute inset-y-0 start-0 ps-3 flex items-center pointer-events-none">
+                   <FileText size={18} className="text-slate-400" />
+                 </div>
+                 <input
+                   type="text"
+                   className="block w-full ps-10 pe-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none transition-all"
+                   value={note}
+                   placeholder={t.transaction.notePlaceholder}
+                   onChange={e => setNote(e.target.value)}
+                 />
+               </div>
+            </div>
+            
+            <div className="flex justify-center">
+                 <button type="button" onClick={() => setShowQR(!showQR)} className="text-xs flex items-center gap-1 text-slate-500 hover:text-primary-600 transition-colors">
+                    <QrCode size={14} /> {showQR ? 'Masquer QR Bankily' : 'Afficher QR Bankily'}
+                 </button>
+            </div>
+            
+            {showQR && (
+                <div className="flex flex-col items-center justify-center p-4 bg-slate-50 rounded-xl border border-slate-200 animate-fade-in">
+                    <img src={qrUrl} alt="Bankily QR" className="w-32 h-32 mb-2 rounded-lg mix-blend-multiply" />
+                    <p className="text-[10px] text-slate-400 text-center">Scan pour Bankily/Masrvi<br/>Montant: {payAmount || currentDebt}</p>
+                </div>
+            )}
 
             <div className="space-y-2 p-3 bg-slate-50 rounded-lg border border-slate-100">
               <div className="flex justify-between items-center text-sm">
                 <span className="text-slate-500 font-medium">{t.payment.amountPaid}</span>
                 <span className="font-bold text-slate-800">
-                  {payAmount.toLocaleString()} {t.currency}
+                  {formatMoney(payAmount)}
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-500 font-medium">{t.payment.newBalance}</span>
                 <span className={`text-lg font-bold ${remaining === 0 && payAmount > 0 ? 'text-green-600' : 'text-slate-800'}`}>
-                  {remaining === 0 && payAmount > 0 ? t.payment.fullyPaid : `${remaining.toLocaleString()} ${t.currency}`}
+                  {remaining === 0 && payAmount > 0 ? t.payment.fullyPaid : formatMoney(remaining)}
                 </span>
               </div>
             </div>

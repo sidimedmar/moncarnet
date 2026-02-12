@@ -37,7 +37,8 @@
         "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
         "react/": "https://esm.sh/react@^19.2.4/",
         "react": "https://esm.sh/react@^19.2.4",
-        "react-dom/": "https://esm.sh/react-dom@^19.2.4/"
+        "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+        "jspdf": "https://esm.sh/jspdf@2.5.1"
       }
     }
     </script>
@@ -49,6 +50,13 @@
       /* Safe area for iPhone home bar */
       body {
         padding-bottom: env(safe-area-inset-bottom);
+      }
+      .hide-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .hide-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
       }
     </style>
   </head>

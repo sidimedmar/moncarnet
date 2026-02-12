@@ -1,18 +1,20 @@
 import React from 'react';
-import { TrendingUp, Users } from 'lucide-react';
+import { TrendingUp, Users, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface SummaryCardProps {
   totalAmount: number;
   totalCount: number;
+  collectedToday: number;
+  creditedToday: number;
 }
 
-const SummaryCard: React.FC<SummaryCardProps> = ({ totalAmount, totalCount }) => {
+const SummaryCard: React.FC<SummaryCardProps> = ({ totalAmount, totalCount, collectedToday, creditedToday }) => {
   const { t } = useLanguage();
 
   return (
     <div className="bg-gradient-to-br from-primary-700 to-primary-900 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
-      {/* Decorative circles - flipped for RTL using logical properties if supported, but simple absolute positioning needs manual flip or 'inset-inline-start/end' which tailwind supports via start/end */}
+      {/* Decorative circles */}
       <div className="absolute top-0 end-0 -me-8 -mt-8 w-32 h-32 rounded-full bg-white/10 blur-2xl pointer-events-none"></div>
       <div className="absolute bottom-0 start-0 -ms-8 -mb-8 w-24 h-24 rounded-full bg-white/5 blur-xl pointer-events-none"></div>
       
@@ -29,7 +31,22 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ totalAmount, totalCount }) =>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-primary-100 text-sm bg-white/10 w-fit px-3 py-1.5 rounded-full backdrop-blur-sm">
+        <div className="grid grid-cols-2 gap-3 mb-4">
+           <div className="bg-white/10 rounded-lg p-2 backdrop-blur-sm">
+             <div className="flex items-center gap-1 text-emerald-300 text-xs font-bold mb-1">
+               <ArrowDownLeft size={12} /> {t.collectedToday}
+             </div>
+             <p className="text-lg font-bold">{collectedToday.toLocaleString()} <span className="text-xs opacity-70">{t.currency}</span></p>
+           </div>
+           <div className="bg-white/10 rounded-lg p-2 backdrop-blur-sm">
+             <div className="flex items-center gap-1 text-rose-300 text-xs font-bold mb-1">
+               <ArrowUpRight size={12} /> {t.creditedToday}
+             </div>
+             <p className="text-lg font-bold">{creditedToday.toLocaleString()} <span className="text-xs opacity-70">{t.currency}</span></p>
+           </div>
+        </div>
+
+        <div className="flex items-center gap-2 text-primary-100 text-sm bg-white/5 w-fit px-3 py-1.5 rounded-full backdrop-blur-sm border border-white/10">
           <Users size={14} />
           <span>{totalCount} {t.pendingClients}</span>
         </div>

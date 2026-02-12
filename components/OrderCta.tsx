@@ -10,7 +10,8 @@ const OrderCta: React.FC = () => {
     whatsappNumber: ''
   });
   
-  const [devWhatsapp, setDevWhatsapp] = useState("40000000"); // Default without country code
+  // Default fallback number
+  const [targetWhatsapp, setTargetWhatsapp] = useState("41000000");
 
   useEffect(() => {
     const loadConfig = () => {
@@ -18,8 +19,9 @@ const OrderCta: React.FC = () => {
       if (savedConfig) {
         try {
           const config = JSON.parse(savedConfig);
-          if (config.whatsapp) {
-            setDevWhatsapp(config.whatsapp);
+          // Si un numéro WhatsApp est configuré dans "À propos", on l'utilise pour la réception
+          if (config.whatsapp && config.whatsapp.trim() !== "") {
+            setTargetWhatsapp(config.whatsapp);
           }
         } catch (e) {
           console.error("Failed to parse contact config for CTA", e);
@@ -27,12 +29,11 @@ const OrderCta: React.FC = () => {
       }
     };
 
-    loadConfig(); // Charger la config au montage
-
-    window.addEventListener('config-updated', loadConfig); // Écouter les mises à jour
+    loadConfig();
+    window.addEventListener('config-updated', loadConfig);
 
     return () => {
-      window.removeEventListener('config-updated', loadConfig); // Nettoyer l'écouteur
+      window.removeEventListener('config-updated', loadConfig);
     };
   }, []);
 
@@ -49,8 +50,15 @@ const OrderCta: React.FC = () => {
       .replace('{shopName}', formData.shopName)
       .replace('{whatsappNumber}', formData.whatsappNumber);
     
-    // Add country code prefix consistently
-    const whatsappUrl = `https://wa.me/222${devWhatsapp}?text=${encodeURIComponent(message)}`;
+    // Nettoyage et formatage du numéro de destination
+    let cleanNumber = targetWhatsapp.replace(/\D/g, ''); // Enlève espaces et caractères non numériques
+    
+    // Si le numéro ne commence pas par 222 ou s'il semble être un numéro court (8 chiffres), on ajoute 222
+    if (!cleanNumber.startsWith('222') || cleanNumber.length === 8) {
+        cleanNumber = '222' + cleanNumber;
+    }
+    
+    const whatsappUrl = `https://wa.me/${cleanNumber}?text=${encodeURIComponent(message)}`;
     
     window.open(whatsappUrl, '_blank');
   };

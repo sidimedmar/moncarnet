@@ -7,6 +7,7 @@ interface LanguageContextType {
   setLanguage: (lang: Language) => void;
   t: typeof translations.fr;
   dir: 'ltr' | 'rtl';
+  formatMoney: (amount: number) => string;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
@@ -18,14 +19,19 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
   const dir = language === 'ar' ? 'rtl' : 'ltr';
 
   useEffect(() => {
-    // Update HTML dir attribute for global CSS logic if needed, 
-    // though we primarily handle it in the App wrapper.
     document.documentElement.dir = dir;
     document.documentElement.lang = language;
   }, [dir, language]);
 
+  const formatMoney = (amount: number) => {
+    return new Intl.NumberFormat(language === 'fr' ? 'fr-MR' : 'ar-MR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount) + ' ' + t.currency;
+  };
+
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t, dir }}>
+    <LanguageContext.Provider value={{ language, setLanguage, t, dir, formatMoney }}>
       {children}
     </LanguageContext.Provider>
   );
