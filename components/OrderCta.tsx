@@ -13,17 +13,27 @@ const OrderCta: React.FC = () => {
   const [devWhatsapp, setDevWhatsapp] = useState("40000000"); // Default without country code
 
   useEffect(() => {
-    const savedConfig = localStorage.getItem('dev_contact_config');
-    if (savedConfig) {
-      try {
-        const config = JSON.parse(savedConfig);
-        if (config.whatsapp) {
-          setDevWhatsapp(config.whatsapp);
+    const loadConfig = () => {
+      const savedConfig = localStorage.getItem('dev_contact_config');
+      if (savedConfig) {
+        try {
+          const config = JSON.parse(savedConfig);
+          if (config.whatsapp) {
+            setDevWhatsapp(config.whatsapp);
+          }
+        } catch (e) {
+          console.error("Failed to parse contact config for CTA", e);
         }
-      } catch (e) {
-        console.error("Failed to parse contact config for CTA", e);
       }
-    }
+    };
+
+    loadConfig(); // Charger la config au montage
+
+    window.addEventListener('config-updated', loadConfig); // Écouter les mises à jour
+
+    return () => {
+      window.removeEventListener('config-updated', loadConfig); // Nettoyer l'écouteur
+    };
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {

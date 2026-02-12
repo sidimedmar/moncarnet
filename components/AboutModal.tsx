@@ -25,6 +25,7 @@ const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
 
   const handleSave = () => {
     localStorage.setItem('dev_contact_config', JSON.stringify(config));
+    window.dispatchEvent(new Event('config-updated')); // Notifie les autres composants du changement
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
